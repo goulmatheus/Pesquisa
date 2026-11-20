@@ -1,6 +1,6 @@
 // POST /api/enviar  { respostas: [0,2,null,...] }
 // Soma os pontos, define o nível, sorteia o grupo (A/B equilibrado dentro do nível),
-// grava no Supabase e devolve o vídeo do grupo.
+// grava no Supabase e devolve o link do formulário do grupo (com o código já preenchido).
 const { perguntas, niveis } = require("./_config");
 const { sb, getConfig } = require("./_db");
 
@@ -8,20 +8,6 @@ function nivelPorPontos(pontos) {
   let escolhido = niveis[0].nome;
   for (const n of niveis) if (pontos >= n.min) escolhido = n.nome;
   return escolhido;
-}
-
-function toEmbed(url) {
-  try {
-    const u = new URL(url);
-    let id = null;
-    if (u.hostname.includes("youtu.be")) id = u.pathname.slice(1);
-    else if (u.pathname.startsWith("/embed/")) id = u.pathname.split("/")[2];
-    else if (u.pathname.startsWith("/shorts/")) id = u.pathname.split("/")[2];
-    else id = u.searchParams.get("v");
-    return id ? `https://www.youtube.com/embed/${id}` : url;
-  } catch {
-    return url;
-  }
 }
 
 module.exports = async (req, res) => {
@@ -45,7 +31,7 @@ module.exports = async (req, res) => {
 
   try {
     const cfg = await getConfig();
-    if (!cfg.video_a || !cfg.video_b) {
+    if (!cfg.form_a || !cfg.form_b) {
       return res.status(503).json({ erro: "A pesquisa ainda não foi aberta." });
     }
 
@@ -60,8 +46,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       codigo,
       grupo,
-      video: toEmbed(grupo === "A" ? cfg.video_a : cfg.video_b),
-      linkEtapa2: cfg.link_etapa2 || "",
+      link: (grupo === "A" ? cfg.form_a : cfg.form_b).split("{codigo}").join(encodeURIComponent(codigo)),
     });
   } catch (e) {
     console.error(e.detalhe || e);

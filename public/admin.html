@@ -42,13 +42,12 @@
   <section id="painel" class="oculto">
     <div class="card">
       <h1>Configuração da pesquisa</h1>
-      <p>Enquanto os dois vídeos não forem preenchidos, a pesquisa fica fechada para os participantes.</p>
-      <label for="va">Vídeo A (link do YouTube)</label>
-      <input type="url" id="va" placeholder="https://www.youtube.com/watch?v=...">
-      <label for="vb">Vídeo B (link do YouTube)</label>
-      <input type="url" id="vb" placeholder="https://www.youtube.com/watch?v=...">
-      <label for="l2">Link da etapa 2 (formulário final)</label>
-      <input type="url" id="l2" placeholder="https://forms.gle/...">
+      <p>Cole o link do formulário de cada grupo (cada formulário tem os 2 vídeos e os 2 questionários). Enquanto os dois links não forem preenchidos, a pesquisa fica fechada para os participantes.</p>
+      <label for="fa">Formulário do Grupo A</label>
+      <input type="url" id="fa" placeholder="https://docs.google.com/forms/...">
+      <label for="fb">Formulário do Grupo B</label>
+      <input type="url" id="fb" placeholder="https://docs.google.com/forms/...">
+      <p><small>Dica: use o link "preenchido" do Forms com o código do participante trocado por <b>{codigo}</b>. O site coloca o código de cada pessoa no lugar automaticamente.</small></p>
       <button id="salvar">Salvar</button>
       <div class="msg" id="msgSalvar"></div>
       <p id="status"></p>
@@ -102,9 +101,9 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s; re
 
 function desenhar() {
   const c = dados.config;
-  $("va").value = c.video_a || ""; $("vb").value = c.video_b || ""; $("l2").value = c.link_etapa2 || "";
-  const aberta = c.video_a && c.video_b;
-  $("status").innerHTML = aberta ? "✅ Pesquisa <b>aberta</b> para participantes." : "🔒 Pesquisa <b>fechada</b> (faltam os vídeos A e B).";
+  $("fa").value = c.form_a || ""; $("fb").value = c.form_b || "";
+  const aberta = c.form_a && c.form_b;
+  $("status").innerHTML = aberta ? "✅ Pesquisa <b>aberta</b> para participantes." : "🔒 Pesquisa <b>fechada</b> (faltam os links dos formulários A e B).";
 
   let h = "<table><tr><th>Nível</th><th>Grupo A</th><th>Grupo B</th><th>Total</th></tr>";
   let ta = 0, tb = 0;
@@ -148,7 +147,7 @@ $("atualizar").addEventListener("click", () => carregar().catch((e) => alert(e.m
 $("salvar").addEventListener("click", async () => {
   const m = $("msgSalvar"); m.className = "msg"; m.textContent = "Salvando...";
   try {
-    await api("POST", { acao: "salvar", video_a: $("va").value, video_b: $("vb").value, link_etapa2: $("l2").value });
+    await api("POST", { acao: "salvar", form_a: $("fa").value, form_b: $("fb").value });
     await carregar(); m.className = "msg ok"; m.textContent = "Salvo!";
   } catch (e) { m.className = "msg erro"; m.textContent = e.message; }
 });
@@ -165,7 +164,7 @@ $("csv").addEventListener("click", () => {
   const aspas = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const cab = ["Código", "Data", "Nível", "Pontos", "Grupo", ...dados.perguntas];
   const linhas = dados.participantes.map((p) => [p.codigo, new Date(p.criado_em).toLocaleString("pt-BR"), p.nivel, p.pontuacao, p.grupo, ...p.respostas]);
-  const csv = "﻿" + [cab, ...linhas].map((l) => l.map(aspas).join(";")).join("\r\n");
+  const csv = "\uFEFF" + [cab, ...linhas].map((l) => l.map(aspas).join(";")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   a.download = "participantes.csv";

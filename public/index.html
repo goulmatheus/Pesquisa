@@ -41,27 +41,24 @@
   <!-- ETAPA 2 -->
   <section id="etapa2" class="oculto">
     <div class="card">
-      <h1>Agora assista ao vídeo</h1>
-      <p>Assista até o final. Depois, clique no botão abaixo para responder à última parte.</p>
-      <div class="video"><iframe id="player" allowfullscreen allow="encrypted-media; picture-in-picture"></iframe></div>
-      <p>Seu código de participante (você vai precisar dele na próxima etapa):</p>
+      <h1>Etapa 1 concluída</h1>
+      <p>Na próxima etapa você vai assistir a 2 vídeos e responder a um questionário depois de cada um. Reserve alguns minutos e assista aos vídeos com atenção.</p>
+      <p>Seu código de participante (já vai preenchido no formulário; guarde caso precise):</p>
       <div class="codigo" id="codigo"></div><br>
-      <a class="btn" id="proxima" target="_blank" rel="noopener">Ir para a etapa final</a>
+      <a class="btn" id="proxima">Começar</a>
     </div>
   </section>
 </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const CHAVE = "pesquisa_resultado_v1";
+const CHAVE = "pesquisa_resultado_v2";
 
 function mostrarEtapa2(r) {
   $("etapa1").classList.add("oculto");
   $("etapa2").classList.remove("oculto");
-  $("player").src = r.video;
   $("codigo").textContent = r.codigo;
-  if (r.linkEtapa2) $("proxima").href = r.linkEtapa2;
-  else $("proxima").classList.add("oculto");
+  $("proxima").href = r.link;
   window.scrollTo(0, 0);
 }
 

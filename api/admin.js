@@ -1,6 +1,6 @@
 // /api/admin  (protegido pela senha ADMIN_SENHA enviada no cabeçalho x-admin-senha)
 //  GET  -> configuração atual, resumo, distribuição de pontuações e lista de participantes
-//  POST -> { acao:"salvar", video_a, video_b, link_etapa2 }  ou  { acao:"limpar", confirmacao:"APAGAR" }
+//  POST -> { acao:"salvar", form_a, form_b }  ou  { acao:"limpar", confirmacao:"APAGAR" }
 const crypto = require("crypto");
 const { perguntas, niveis } = require("./_config");
 const { sb, getConfig } = require("./_db");
@@ -80,7 +80,7 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       if (b.acao === "salvar") {
         const campos = {};
-        for (const k of ["video_a", "video_b", "link_etapa2"]) {
+        for (const k of ["form_a", "form_b"]) {
           const v = String(b[k] || "").trim();
           if (v.length > 500 || !linkOk(v)) {
             return res.status(400).json({ erro: `Link inválido em ${k}. Use um endereço começando com https://` });

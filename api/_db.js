@@ -31,8 +31,8 @@ async function sb(caminho, { method = "GET", body, prefer } = {}) {
 }
 
 async function getConfig() {
-  const linhas = await sb("configuracao?id=eq.1&select=video_a,video_b,link_etapa2");
-  return (linhas && linhas[0]) || { video_a: "", video_b: "", link_etapa2: "" };
+  const linhas = await sb("configuracao?id=eq.1&select=form_a,form_b");
+  return (linhas && linhas[0]) || { form_a: "", form_b: "" };
 }
 
 module.exports = { sb, getConfig };
