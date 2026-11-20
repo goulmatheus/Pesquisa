@@ -10,13 +10,17 @@ create table if not exists participantes (
   respostas  jsonb
 );
 
--- Configuração editável pela página /admin (vídeos A/B e link da etapa 2)
+-- Configuração editável pela página /admin (links dos formulários dos grupos A e B)
 create table if not exists configuracao (
   id          int primary key default 1 check (id = 1),
   video_a     text not null default '',
   video_b     text not null default '',
-  link_etapa2 text not null default ''
+  link_etapa2 text not null default '',
+  form_a      text not null default '',   -- formulário do Grupo A (com vídeos 1 e 2)
+  form_b      text not null default ''    -- formulário do Grupo B (com vídeos 1 e 2)
 );
+alter table configuracao add column if not exists form_a text not null default '';
+alter table configuracao add column if not exists form_b text not null default '';
 insert into configuracao (id) values (1) on conflict (id) do nothing;
 
 -- Bloqueia acesso público direto às tabelas (só o servidor acessa)
@@ -63,3 +67,9 @@ end;
 $$;
 
 revoke execute on function atribuir_grupo(int, text, jsonb) from public, anon, authenticated;
+
+-- Permissões para a chave do servidor (service_role). Necessário em projetos novos do Supabase.
+grant usage on schema public to service_role;
+grant all on table public.participantes to service_role;
+grant all on table public.configuracao to service_role;
+grant execute on function public.atribuir_grupo(int, text, jsonb) to service_role;
