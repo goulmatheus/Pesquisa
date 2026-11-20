@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pesquisa</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --txt:#1c1e21; --mut:#65676b; --pri:#1a56db; --bord:#dcdfe4; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--txt); }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 60px; }
+  .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  p { line-height: 1.5; color: var(--mut); margin: 0 0 12px; }
+  label.alt { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--bord); border-radius:8px; margin-bottom:8px; cursor:pointer; }
+  label.alt:hover { border-color: var(--pri); }
+  label.alt input { margin-top:3px; }
+  button, a.btn { display:inline-block; background:var(--pri); color:#fff; border:0; border-radius:8px; padding:12px 20px; font-size:16px; cursor:pointer; text-decoration:none; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .erro { color:#b42318; margin-top:10px; }
+  .video { position:relative; padding-top:56.25%; border-radius:10px; overflow:hidden; background:#000; margin-bottom:16px; }
+  .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .codigo { font-size:26px; font-weight:700; letter-spacing:3px; background:#eef2ff; padding:10px 14px; border-radius:8px; display:inline-block; margin:6px 0 14px; }
+  .oculto { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <!-- ETAPA 1 -->
+  <section id="etapa1">
+    <div class="card">
+      <h1>Pesquisa</h1>
+      <p>Responda às perguntas abaixo. Não pesquise na internet: queremos saber o que você já conhece.</p>
+    </div>
+    <form id="form"></form>
+    <div class="erro" id="erro"></div>
+    <button id="enviar" disabled>Continuar</button>
+  </section>
+
+  <!-- ETAPA 2 -->
+  <section id="etapa2" class="oculto">
+    <div class="card">
+      <h1>Agora assista ao vídeo</h1>
+      <p>Assista até o final. Depois, clique no botão abaixo para responder à última parte.</p>
+      <div class="video"><iframe id="player" allowfullscreen allow="encrypted-media; picture-in-picture"></iframe></div>
+      <p>Seu código de participante (você vai precisar dele na próxima etapa):</p>
+      <div class="codigo" id="codigo"></div><br>
+      <a class="btn" id="proxima" target="_blank" rel="noopener">Ir para a etapa final</a>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CHAVE = "pesquisa_resultado_v1";
+
+function mostrarEtapa2(r) {
+  $("etapa1").classList.add("oculto");
+  $("etapa2").classList.remove("oculto");
+  $("player").src = r.video;
+  $("codigo").textContent = r.codigo;
+  if (r.linkEtapa2) $("proxima").href = r.linkEtapa2;
+  else $("proxima").classList.add("oculto");
+  window.scrollTo(0, 0);
+}
+
+async function iniciar() {
+  // Se a pessoa já respondeu neste aparelho, mostra o mesmo vídeo (não sorteia de novo)
+  try {
+    const salvo = JSON.parse(localStorage.getItem(CHAVE) || "null");
+    if (salvo) return mostrarEtapa2(salvo);
+  } catch {}
+
+  let info;
+  try {
+    const resp = await fetch("/api/perguntas");
+    info = await resp.json();
+    if (!resp.ok) throw new Error();
+  } catch {
+    $("erro").textContent = "Não foi possível carregar a pesquisa. Recarregue a página.";
+    $("enviar").classList.add("oculto");
+    return;
+  }
+  if (!info.aberta) {
+    $("form").innerHTML = '<div class="card"><h2>Pesquisa ainda não aberta</h2><p>Volte em breve. Obrigado!</p></div>';
+    $("enviar").classList.add("oculto");
+    return;
+  }
+  const perguntas = info.perguntas;
+  const form = $("form");
+
+  perguntas.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const h = document.createElement("h2");
+    h.textContent = `${i + 1}. ${p.texto}`;
+    if (p.opcional) { const o = document.createElement("small"); o.textContent = " (pode pular)"; o.style.color = "var(--mut)"; o.style.fontWeight = "400"; h.appendChild(o); }
+    card.appendChild(h);
+    p.alternativas.forEach((alt, j) => {
+      const lab = document.createElement("label");
+      lab.className = "alt";
+      const inp = document.createElement("input");
+      inp.type = "radio"; inp.name = "q" + i; inp.value = j;
+      inp.addEventListener("change", checar);
+      lab.appendChild(inp);
+      lab.appendChild(document.createTextNode(alt));
+      card.appendChild(lab);
+    });
+    form.appendChild(card);
+  });
+
+  function checar() {
+    const ok = perguntas.every((p, i) => p.opcional || form.querySelector(`input[name=q${i}]:checked`));
+    $("enviar").disabled = !ok;
+  }
+
+  $("enviar").addEventListener("click", async () => {
+    $("erro").textContent = "";
+    $("enviar").disabled = true;
+    $("enviar").textContent = "Enviando...";
+    const respostas = perguntas.map((_, i) => {
+      const marcada = form.querySelector(`input[name=q${i}]:checked`);
+      return marcada ? Number(marcada.value) : null;
+    });
+    try {
+      const r = await fetch("/api/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ respostas }),
+      });
+      const dados = await r.json();
+      if (!r.ok) throw new Error(dados.erro || "Erro ao enviar.");
+      try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch {}
+      mostrarEtapa2(dados);
+    } catch (e) {
+      $("erro").textContent = e.message + " Tente novamente.";
+      $("enviar").disabled = false;
+      $("enviar").textContent = "Continuar";
+    }
+  });
+}
+iniciar();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Administração da pesquisa</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --txt:#1c1e21; --mut:#65676b; --pri:#1a56db; --bord:#dcdfe4; --err:#b42318; --ok:#067647; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--txt); }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; margin: 0 0 12px; } h2 { font-size: 17px; margin: 0 0 12px; }
+  p, small { color: var(--mut); line-height:1.5; }
+  label { display:block; font-weight:600; margin: 12px 0 4px; }
+  input[type=text], input[type=password], input[type=url] { width:100%; padding:10px 12px; border:1px solid var(--bord); border-radius:8px; font-size:15px; }
+  button { background:var(--pri); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-size:15px; cursor:pointer; margin-top:12px; }
+  button.sec { background:#fff; color:var(--pri); border:1px solid var(--pri); }
+  button.perigo { background:var(--err); }
+  table { border-collapse: collapse; width:100%; font-size:14px; }
+  th, td { border-bottom:1px solid var(--bord); padding:6px 8px; text-align:left; }
+  th { background:#fafbfc; }
+  .rolagem { overflow-x:auto; max-height:420px; overflow-y:auto; }
+  .msg { margin-top:10px; min-height:20px; } .msg.erro { color:var(--err); } .msg.ok { color:var(--ok); }
+  .oculto { display:none !important; }
+  .linha { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+</style>
+</head>
+<body>
+<main>
+  <!-- LOGIN -->
+  <section id="login" class="card">
+    <h1>Administração</h1>
+    <label for="senha">Senha</label>
+    <input type="password" id="senha" autocomplete="current-password">
+    <button id="entrar">Entrar</button>
+    <div class="msg erro" id="erroLogin"></div>
+  </section>
+
+  <!-- PAINEL -->
+  <section id="painel" class="oculto">
+    <div class="card">
+      <h1>Configuração da pesquisa</h1>
+      <p>Enquanto os dois vídeos não forem preenchidos, a pesquisa fica fechada para os participantes.</p>
+      <label for="va">Vídeo A (link do YouTube)</label>
+      <input type="url" id="va" placeholder="https://www.youtube.com/watch?v=...">
+      <label for="vb">Vídeo B (link do YouTube)</label>
+      <input type="url" id="vb" placeholder="https://www.youtube.com/watch?v=...">
+      <label for="l2">Link da etapa 2 (formulário final)</label>
+      <input type="url" id="l2" placeholder="https://forms.gle/...">
+      <button id="salvar">Salvar</button>
+      <div class="msg" id="msgSalvar"></div>
+      <p id="status"></p>
+    </div>
+
+    <div class="card">
+      <h2>Resumo: participantes por nível e grupo</h2>
+      <div id="resumo"></div>
+      <h2 style="margin-top:20px">Distribuição das pontuações</h2>
+      <p>Use para ajustar os cortes dos níveis em <code>api/_config.js</code> (os níveis ficam melhores com tamanhos parecidos).</p>
+      <div id="distrib"></div>
+    </div>
+
+    <div class="card">
+      <h2>Participantes</h2>
+      <div class="linha">
+        <button class="sec" id="atualizar">Atualizar</button>
+        <button id="csv">Baixar CSV (Excel)</button>
+      </div>
+      <div class="rolagem" style="margin-top:12px"><table id="tabela"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Apagar dados de teste</h2>
+      <p>Apaga TODOS os participantes. Use depois dos testes, antes de divulgar. Não dá para desfazer.</p>
+      <label for="conf">Digite APAGAR para confirmar</label>
+      <input type="text" id="conf">
+      <button class="perigo" id="limpar">Apagar todos os participantes</button>
+      <div class="msg" id="msgLimpar"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let senha = sessionStorage.getItem("admin_senha") || "";
+let dados = null;
+
+async function api(metodo, corpo) {
+  const r = await fetch("/api/admin", {
+    method: metodo,
+    headers: { "Content-Type": "application/json", "x-admin-senha": senha },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.erro || "Erro"), { status: r.status });
+  return j;
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+function desenhar() {
+  const c = dados.config;
+  $("va").value = c.video_a || ""; $("vb").value = c.video_b || ""; $("l2").value = c.link_etapa2 || "";
+  const aberta = c.video_a && c.video_b;
+  $("status").innerHTML = aberta ? "✅ Pesquisa <b>aberta</b> para participantes." : "🔒 Pesquisa <b>fechada</b> (faltam os vídeos A e B).";
+
+  let h = "<table><tr><th>Nível</th><th>Grupo A</th><th>Grupo B</th><th>Total</th></tr>";
+  let ta = 0, tb = 0;
+  for (const [nivel, g] of Object.entries(dados.resumo)) {
+    h += `<tr><td>${esc(nivel)}</td><td>${g.A}</td><td>${g.B}</td><td>${g.A + g.B}</td></tr>`;
+    ta += g.A; tb += g.B;
+  }
+  h += `<tr><th>Total</th><th>${ta}</th><th>${tb}</th><th>${ta + tb}</th></tr></table>`;
+  $("resumo").innerHTML = h;
+
+  const pts = Object.keys(dados.distribuicao).map(Number).sort((a, b) => a - b);
+  $("distrib").innerHTML = pts.length
+    ? "<table><tr><th>Pontuação</th><th>Pessoas</th></tr>" + pts.map((p) => `<tr><td>${p}</td><td>${dados.distribuicao[p]}</td></tr>`).join("") + "</table>"
+    : "<p>Ainda sem respostas.</p>";
+
+  const cab = ["Código", "Data", "Nível", "Pontos", "Grupo"];
+  let t = "<tr>" + cab.map((x) => `<th>${x}</th>`).join("") + "</tr>";
+  for (const p of dados.participantes) {
+    t += `<tr><td>${esc(p.codigo)}</td><td>${new Date(p.criado_em).toLocaleString("pt-BR")}</td><td>${esc(p.nivel)}</td><td>${p.pontuacao}</td><td>${p.grupo}</td></tr>`;
+  }
+  $("tabela").innerHTML = t;
+}
+
+async function carregar() {
+  dados = await api("GET");
+  $("login").classList.add("oculto");
+  $("painel").classList.remove("oculto");
+  desenhar();
+}
+
+$("entrar").addEventListener("click", async () => {
+  senha = $("senha").value;
+  $("erroLogin").textContent = "";
+  try { await carregar(); sessionStorage.setItem("admin_senha", senha); }
+  catch (e) { $("erroLogin").textContent = e.message; }
+});
+$("senha").addEventListener("keydown", (e) => { if (e.key === "Enter") $("entrar").click(); });
+
+$("atualizar").addEventListener("click", () => carregar().catch((e) => alert(e.message)));
+
+$("salvar").addEventListener("click", async () => {
+  const m = $("msgSalvar"); m.className = "msg"; m.textContent = "Salvando...";
+  try {
+    await api("POST", { acao: "salvar", video_a: $("va").value, video_b: $("vb").value, link_etapa2: $("l2").value });
+    await carregar(); m.className = "msg ok"; m.textContent = "Salvo!";
+  } catch (e) { m.className = "msg erro"; m.textContent = e.message; }
+});
+
+$("limpar").addEventListener("click", async () => {
+  const m = $("msgLimpar"); m.className = "msg"; m.textContent = "";
+  try {
+    await api("POST", { acao: "limpar", confirmacao: $("conf").value });
+    $("conf").value = ""; await carregar(); m.className = "msg ok"; m.textContent = "Participantes apagados.";
+  } catch (e) { m.className = "msg erro"; m.textContent = e.message; }
+});
+
+$("csv").addEventListener("click", () => {
+  const aspas = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const cab = ["Código", "Data", "Nível", "Pontos", "Grupo", ...dados.perguntas];
+  const linhas = dados.participantes.map((p) => [p.codigo, new Date(p.criado_em).toLocaleString("pt-BR"), p.nivel, p.pontuacao, p.grupo, ...p.respostas]);
+  const csv = "﻿" + [cab, ...linhas].map((l) => l.map(aspas).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "participantes.csv";
+  a.click();
+});
+
+if (senha) carregar().catch(() => { sessionStorage.removeItem("admin_senha"); });
+</script>
+</body>
+</html>
